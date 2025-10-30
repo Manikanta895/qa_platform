@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Register - QA Platform{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-icon">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <h1>Create Account</h1>
+            <p>Join our Q&A community</p>
+        </div>
+        
+        <form method="POST" action="{{ url_for('auth.register') }}" class="auth-form" id="registerForm">
+            <div class="form-group">
+                <label for="email">
+                    <i class="fas fa-envelope"></i> Email Address
+                </label>
+                <input type="email" id="email" name="email" required 
+                       placeholder="Enter your email" class="form-control">
+                <small class="form-hint">We'll send a verification code to this email</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">
+                    <i class="fas fa-lock"></i> Password
+                </label>
+                <div class="password-input-group">
+                    <input type="password" id="password" name="password" required 
+                           placeholder="Create a strong password" class="form-control">
+                    <button type="button" class="toggle-password" onclick="togglePassword('password')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div class="password-strength" id="passwordStrength"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="confirm_password">
+                    <i class="fas fa-lock"></i> Confirm Password
+                </label>
+                <div class="password-input-group">
+                    <input type="password" id="confirm_password" name="confirm_password" required 
+                           placeholder="Re-enter your password" class="form-control">
+                    <button type="button" class="toggle-password" onclick="togglePassword('confirm_password')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <i class="fas fa-user-tag"></i> I am registering as:
+                </label>
+                <div class="user-type-selector">
+                    <label class="radio-card">
+                        <input type="radio" name="user_type" value="student" required>
+                        <div class="radio-card-content">
+                            <i class="fas fa-graduation-cap"></i>
+                            <span>Student</span>
+                            <small>Ask questions and learn</small>
+                        </div>
+                    </label>
+                    
+                    <label class="radio-card">
+                        <input type="radio" name="user_type" value="staff" required>
+                        <div class="radio-card-content">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <span>Staff/Teacher</span>
+                            <small>Answer questions and help</small>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="password-requirements">
+                <p><strong>Password must contain:</strong></p>
+                <ul>
+                    <li id="req-length"><i class="fas fa-circle"></i> At least 8 characters</li>
+                    <li id="req-uppercase"><i class="fas fa-circle"></i> One uppercase letter</li>
+                    <li id="req-lowercase"><i class="fas fa-circle"></i> One lowercase letter</li>
+                    <li id="req-number"><i class="fas fa-circle"></i> One number</li>
+                    <li id="req-special"><i class="fas fa-circle"></i> One special character (!@#$%^&*)</li>
+                </ul>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block">
+                <i class="fas fa-user-plus"></i> Create Account
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <div class="auth-divider">
+                <span>Already have an account?</span>
+            </div>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-block">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = event.currentTarget.querySelector('i');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+// Password strength checker
+document.getElementById('password').addEventListener('input', function(e) {
+    const password = e.target.value;
+    const requirements = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /[0-9]/.test(password),
+        special: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)
+    };
+    
+    // Update requirement indicators
+    document.getElementById('req-length').className = requirements.length ? 'valid' : '';
+    document.getElementById('req-uppercase').className = requirements.uppercase ? 'valid' : '';
+    document.getElementById('req-lowercase').className = requirements.lowercase ? 'valid' : '';
+    document.getElementById('req-number').className = requirements.number ? 'valid' : '';
+    document.getElementById('req-special').className = requirements.special ? 'valid' : '';
+    
+    // Calculate strength
+    const strength = Object.values(requirements).filter(Boolean).length;
+    const strengthEl = document.getElementById('passwordStrength');
+    
+    if (password.length === 0) {
+        strengthEl.innerHTML = '';
+        return;
+    }
+    
+    if (strength <= 2) {
+        strengthEl.innerHTML = '<span class="weak">Weak</span>';
+    } else if (strength <= 4) {
+        strengthEl.innerHTML = '<span class="medium">Medium</span>';
+    } else {
+        strengthEl.innerHTML = '<span class="strong">Strong</span>';
+    }
+});
+
+// Form validation
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm_password').value;
+    
+    if (password !== confirmPassword) {
+        e.preventDefault();
+        alert('Passwords do not match!');
+        return false;
+    }
+});
+</script>
+{% endblock %}

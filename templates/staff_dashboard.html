@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Dashboard - QA Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-chalkboard-teacher"></i> Staff Dashboard</h1>
+        <p>Answer questions and help students learn</p>
+    </div>
+    
+    <div class="dashboard-grid">
+        <!-- Public Questions Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-globe"></i> Public Questions ({{ public_questions|length }})</h2>
+            </div>
+            <div class="card-body">
+                {% if public_questions %}
+                <div class="questions-list">
+                    {% for question in public_questions %}
+                    <div class="question-item">
+                        <div class="question-header">
+                            <span class="question-badge public">
+                                <i class="fas fa-globe"></i> Public
+                            </span>
+                            <span class="question-date">
+                                <i class="fas fa-clock"></i>
+                                {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                            </span>
+                        </div>
+                        <p class="question-content">{{ question.content }}</p>
+                        
+                        <!-- Answer Form -->
+                        {% if not question.answers|selectattr('staff_id', 'equalto', current_user.id)|list %}
+                        <div class="answer-form">
+                            <form class="answer-form-inline" onsubmit="submitAnswer(event, {{ question.id }})">
+                                <textarea name="answer_content" placeholder="Type your answer here..." 
+                                          class="form-control answer-textarea" rows="3" required
+                                          oninput="checkAnswerProfanity(this, {{ question.id }})"></textarea>
+                                <div class="profanity-warning" id="profanity-warning-{{ question.id }}" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Inappropriate language detected. Please remove it before sending.
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm" id="answer-btn-{{ question.id }}">
+                                    <i class="fas fa-reply"></i> Answer
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Existing Answers -->
+                        {% if question.answers %}
+                        <div class="answers-section">
+                            <h4><i class="fas fa-reply"></i> Answers:</h4>
+                            {% for answer in question.answers %}
+                            <div class="answer-item">
+                                <div class="answer-header">
+                                    <span class="answerer-badge">
+                                        <i class="fas fa-user-tie"></i> 
+                                        {{ answer.answerer.email }}
+                                    </span>
+                                    <span class="answer-date">
+                                        {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                    </span>
+                                </div>
+                                <p>{{ answer.content }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty-state">
+                    <i class="fas fa-inbox"></i><br>
+                    No public questions at the moment.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Private Questions Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-user-lock"></i> Private Questions for Me ({{ private_questions|length }})</h2>
+            </div>
+            <div class="card-body">
+                {% if private_questions %}
+                <div class="questions-list">
+                    {% for question in private_questions %}
+                    <div class="question-item">
+                        <div class="question-header">
+                            <span class="question-badge private">
+                                <i class="fas fa-lock"></i> Private (Anonymous)
+                            </span>
+                            <span class="question-date">
+                                <i class="fas fa-clock"></i>
+                                {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                            </span>
+                        </div>
+                        <p class="question-content">{{ question.content }}</p>
+                        <p class="anonymous-note">
+                            <i class="fas fa-info-circle"></i> 
+                            Student identity is hidden. Your answer will be sent privately.
+                        </p>
+                        
+                        <!-- Answer Form -->
+                        {% if not question.is_answered %}
+                        <div class="answer-form">
+                            <form class="answer-form-inline" onsubmit="submitAnswer(event, {{ question.id }})">
+                                <textarea name="answer_content" placeholder="Type your private answer here..." 
+                                          class="form-control answer-textarea" rows="3" required
+                                          oninput="checkAnswerProfanity(this, {{ question.id }})"></textarea>
+                                <div class="profanity-warning" id="profanity-warning-{{ question.id }}" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Inappropriate language detected.
+                                </div>
+                                <div class="answer-actions">
+                                    <button type="submit" class="btn btn-primary btn-sm" id="answer-btn-{{ question.id }}">
+                                        <i class="fas fa-reply"></i> Send Answer
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-sm" 
+                                            onclick="blockStudent({{ question.student_id }}, {{ question.id }})">
+                                        <i class="fas fa-ban"></i> Block Student
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        {% else %}
+                        <div class="answered-badge">
+                            <i class="fas fa-check-circle"></i> Answered
+                        </div>
+                        {% if question.answers %}
+                        <div class="answers-section">
+                            {% for answer in question.answers %}
+                            {% if answer.staff_id == current_user.id %}
+                            <div class="answer-item">
+                                <p><strong>Your Answer:</strong> {{ answer.content }}</p>
+                                <span class="answer-date">
+                                    {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty-state">
+                    <i class="fas fa-inbox"></i><br>
+                    No private questions for you at the moment.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let profanityCheckTimeouts = {};
+
+function checkAnswerProfanity(textarea, questionId) {
+    const content = textarea.value.trim();
+    const submitBtn = document.getElementById(`answer-btn-${questionId}`);
+    const warning = document.getElementById(`profanity-warning-${questionId}`);
+    
+    if (content.length === 0) {
+        warning.style.display = 'none';
+        submitBtn.disabled = false;
+        return;
+    }
+    
+    clearTimeout(profanityCheckTimeouts[questionId]);
+    profanityCheckTimeouts[questionId] = setTimeout(() => {
+        fetch('/check-profanity', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: content })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.contains_profanity) {
+                warning.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                warning.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    }, 500);
+}
+
+function submitAnswer(event, questionId) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData();
+    const content = form.querySelector('textarea[name="answer_content"]').value.trim();
+    
+    formData.append('question_id', questionId);
+    formData.append('content', content);
+    
+    fetch('/answer-question', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Answer submitted successfully!');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error submitting answer');
+        console.error(error);
+    });
+}
+
+function blockStudent(studentId, questionId) {
+    if (!confirm('Are you sure you want to block this student? This will block them for ALL teachers.')) {
+        return;
+    }
+    
+    const reason = prompt('Reason for blocking (optional):') || 'Inappropriate behavior';
+    
+    const formData = new FormData();
+    formData.append('student_id', studentId);
+    formData.append('reason', reason);
+    
+    fetch('/block-student', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Student blocked successfully!');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error blocking student');
+        console.error(error);
+    });
+}
+</script>
+{% endblock %}

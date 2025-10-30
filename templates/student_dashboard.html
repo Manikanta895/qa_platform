@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard - QA Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-graduation-cap"></i> Student Dashboard</h1>
+        <p>Ask questions publicly or privately to specific teachers</p>
+    </div>
+    
+    {% if current_user.is_blocked %}
+    <div class="alert alert-danger">
+        <i class="fas fa-ban"></i>
+        <strong>Your account is blocked.</strong> You cannot send messages until unblocked.
+    </div>
+    {% endif %}
+    
+    <div class="dashboard-grid">
+        <!-- Ask Question Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-question-circle"></i> Ask a Question</h2>
+            </div>
+            <div class="card-body">
+                <form id="askQuestionForm">
+                    <div class="form-group">
+                        <label>Question Type:</label>
+                        <div class="question-type-selector">
+                            <label class="radio-card-inline">
+                                <input type="radio" name="question_type" value="public" checked 
+                                       onchange="toggleStaffSelect()">
+                                <span><i class="fas fa-globe"></i> Public</span>
+                            </label>
+                            <label class="radio-card-inline">
+                                <input type="radio" name="question_type" value="private" 
+                                       onchange="toggleStaffSelect()">
+                                <span><i class="fas fa-user-lock"></i> Private</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="staffSelectGroup" style="display: none;">
+                        <label for="staff_id">
+                            <i class="fas fa-user-tie"></i> Select Teacher:
+                        </label>
+                        <select id="staff_id" name="staff_id" class="form-control">
+                            <option value="">-- Choose a teacher --</option>
+                            {% for staff in staff_members %}
+                            <option value="{{ staff.id }}">{{ staff.email }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-hint">Your identity will remain anonymous</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="question_content">
+                            <i class="fas fa-comment-dots"></i> Your Question:
+                        </label>
+                        <textarea id="question_content" name="content" rows="4" 
+                                  class="form-control" placeholder="Type your question here..."
+                                  {% if current_user.is_blocked %}disabled{% endif %}></textarea>
+                        <div id="profanityWarning" class="profanity-warning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Inappropriate language detected. Please remove it before sending.
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="submitQuestion" class="btn btn-primary"
+                            {% if current_user.is_blocked %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane"></i> Submit Question
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- My Questions Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-list"></i> My Questions</h2>
+            </div>
+            <div class="card-body">
+                {% if my_questions %}
+                <div class="questions-list">
+                    {% for question in my_questions %}
+                    <div class="question-item">
+                        <div class="question-header">
+                            <span class="question-badge {{ 'public' if question.is_public else 'private' }}">
+                                <i class="fas fa-{{ 'globe' if question.is_public else 'lock' }}"></i>
+                                {{ 'Public' if question.is_public else 'Private' }}
+                            </span>
+                            <span class="question-date">
+                                <i class="fas fa-clock"></i>
+                                {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                            </span>
+                        </div>
+                        <p class="question-content">{{ question.content }}</p>
+                        
+                        {% if question.answers %}
+                        <div class="answers-section">
+                            <h4><i class="fas fa-reply"></i> Answers ({{ question.answers|length }}):</h4>
+                            {% for answer in question.answers %}
+                            <div class="answer-item">
+                                <div class="answer-header">
+                                    <span class="answerer-badge">
+                                        <i class="fas fa-chalkboard-teacher"></i> Teacher
+                                    </span>
+                                    <span class="answer-date">
+                                        {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                    </span>
+                                </div>
+                                <p>{{ answer.content }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="no-answer"><i class="fas fa-hourglass-half"></i> Waiting for answer...</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty-state">
+                    <i class="fas fa-inbox"></i><br>
+                    You haven't asked any questions yet.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleStaffSelect() {
+    const questionType = document.querySelector('input[name="question_type"]:checked').value;
+    const staffSelectGroup = document.getElementById('staffSelectGroup');
+    
+    if (questionType === 'private') {
+        staffSelectGroup.style.display = 'block';
+    } else {
+        staffSelectGroup.style.display = 'none';
+    }
+}
+
+// Real-time profanity check
+let profanityCheckTimeout;
+document.getElementById('question_content').addEventListener('input', function() {
+    const content = this.value.trim();
+    const submitBtn = document.getElementById('submitQuestion');
+    const warning = document.getElementById('profanityWarning');
+    
+    if (content.length === 0) {
+        warning.style.display = 'none';
+        submitBtn.disabled = false;
+        return;
+    }
+    
+    clearTimeout(profanityCheckTimeout);
+    profanityCheckTimeout = setTimeout(() => {
+        fetch('/check-profanity', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: content })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.contains_profanity) {
+                warning.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                warning.style.display = 'none';
+                submitBtn.disabled = {{ 'true' if current_user.is_blocked else 'false' }};
+            }
+        });
+    }, 500);
+});
+
+// Submit question
+document.getElementById('askQuestionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    const content = document.getElementById('question_content').value.trim();
+    const questionType = document.querySelector('input[name="question_type"]:checked').value;
+    
+    formData.append('content', content);
+    formData.append('is_public', questionType === 'public');
+    
+    if (questionType === 'private') {
+        const staffId = document.getElementById('staff_id').value;
+        if (!staffId) {
+            alert('Please select a teacher for private questions');
+            return;
+        }
+        formData.append('staff_id', staffId);
+    }
+    
+    fetch('/ask-question', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Question submitted successfully!');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error submitting question');
+        console.error(error);
+    });
+});
+</script>
+{% endblock %}

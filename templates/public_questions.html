@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Public Questions - QA Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-globe"></i> Public Questions</h1>
+        <p>Browse and participate in public discussions</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            {% if questions %}
+            <div class="questions-list">
+                {% for question in questions %}
+                <div class="question-item">
+                    <div class="question-header">
+                        <span class="question-badge public">
+                            <i class="fas fa-globe"></i> Public Question
+                        </span>
+                        <span class="question-date">
+                            <i class="fas fa-clock"></i>
+                            {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                        </span>
+                    </div>
+                    <p class="question-content">{{ question.content }}</p>
+                    
+                    <!-- Answers Section -->
+                    {% if question.answers %}
+                    <div class="answers-section">
+                        <h4><i class="fas fa-reply"></i> Answers ({{ question.answers|length }}):</h4>
+                        {% for answer in question.answers %}
+                        <div class="answer-item">
+                            <div class="answer-header">
+                                <span class="answerer-badge">
+                                    <i class="fas fa-chalkboard-teacher"></i> 
+                                    {{ answer.answerer.email }}
+                                </span>
+                                <span class="answer-date">
+                                    {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                </span>
+                            </div>
+                            <p>{{ answer.content }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="no-answer">
+                        <i class="fas fa-hourglass-half"></i> No answers yet
+                    </p>
+                    {% endif %}
+                    
+                    <!-- Answer Form for Staff -->
+                    {% if current_user.user_type == 'staff' %}
+                    {% if not question.answers|selectattr('staff_id', 'equalto', current_user.id)|list %}
+                    <div class="answer-form">
+                        <form class="answer-form-inline" onsubmit="submitAnswer(event, {{ question.id }})">
+                            <textarea name="answer_content" placeholder="Share your answer..." 
+                                      class="form-control answer-textarea" rows="3" required
+                                      oninput="checkAnswerProfanity(this, {{ question.id }})"></textarea>
+                            <div class="profanity-warning" id="profanity-warning-{{ question.id }}" style="display: none;">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Inappropriate language detected.
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm" id="answer-btn-{{ question.id }}">
+                                <i class="fas fa-reply"></i> Answer
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">
+                <i class="fas fa-inbox"></i><br>
+                No public questions available yet.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if current_user.user_type == 'staff' %}
+<script>
+let profanityCheckTimeouts = {};
+
+function checkAnswerProfanity(textarea, questionId) {
+    const content = textarea.value.trim();
+    const submitBtn = document.getElementById(`answer-btn-${questionId}`);
+    const warning = document.getElementById(`profanity-warning-${questionId}`);
+    
+    if (content.length === 0) {
+        warning.style.display = 'none';
+        submitBtn.disabled = false;
+        return;
+    }
+    
+    clearTimeout(profanityCheckTimeouts[questionId]);
+    profanityCheckTimeouts[questionId] = setTimeout(() => {
+        fetch('/check-profanity', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: content })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.contains_profanity) {
+                warning.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                warning.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    }, 500);
+}
+
+function submitAnswer(event, questionId) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData();
+    const content = form.querySelector('textarea[name="answer_content"]').value.trim();
+    
+    formData.append('question_id', questionId);
+    formData.append('content', content);
+    
+    fetch('/answer-question', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Answer submitted successfully!');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error submitting answer');
+        console.error(error);
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

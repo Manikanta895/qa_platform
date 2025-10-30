@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Private Messages - QA Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1><i class="fas fa-lock"></i> Private Messages</h1>
+        <p>View your private conversations</p>
+    </div>
+    
+    {% if current_user.user_type == 'student' %}
+    <!-- Student View: Private questions sent to staff -->
+    <div class="card">
+        <div class="card-header">
+            <h2><i class="fas fa-user-lock"></i> My Private Questions to Teachers</h2>
+        </div>
+        <div class="card-body">
+            {% set private_questions = current_user.questions_asked|selectattr('is_public', 'equalto', False)|list %}
+            
+            {% if private_questions %}
+            <div class="questions-list">
+                {% for question in private_questions %}
+                <div class="question-item">
+                    <div class="question-header">
+                        <span class="question-badge private">
+                            <i class="fas fa-lock"></i> Private to Teacher
+                        </span>
+                        <span class="question-date">
+                            <i class="fas fa-clock"></i>
+                            {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                        </span>
+                    </div>
+                    
+                    <div class="private-message-info">
+                        <p><strong><i class="fas fa-question-circle"></i> Your Question:</strong></p>
+                        <p class="question-content">{{ question.content }}</p>
+                    </div>
+                    
+                    <div class="message-status">
+                        {% if question.is_answered %}
+                        <span class="status-badge status-answered">
+                            <i class="fas fa-check-circle"></i> Answered
+                        </span>
+                        {% else %}
+                        <span class="status-badge status-pending">
+                            <i class="fas fa-hourglass-half"></i> Waiting for response
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Show answers if any -->
+                    {% if question.answers %}
+                    <div class="answers-section">
+                        <h4><i class="fas fa-reply"></i> Teacher's Response:</h4>
+                        {% for answer in question.answers %}
+                        <div class="answer-item">
+                            <div class="answer-header">
+                                <span class="answerer-badge">
+                                    <i class="fas fa-chalkboard-teacher"></i> Teacher Response
+                                </span>
+                                <span class="answer-date">
+                                    {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                </span>
+                            </div>
+                            <p>{{ answer.content }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">
+                <i class="fas fa-inbox"></i><br>
+                You haven't sent any private messages to teachers yet.<br>
+                <small>Go to dashboard to send a private question</small>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% else %}
+    <!-- Staff View: Private questions received from students -->
+    <div class="card">
+        <div class="card-header">
+            <h2><i class="fas fa-envelope"></i> Private Questions from Students</h2>
+        </div>
+        <div class="card-body">
+            {% set private_questions = current_user.questions_asked|selectattr('is_public', 'equalto', False)|selectattr('staff_id', 'equalto', current_user.id)|list %}
+            
+            {% if private_questions %}
+            <div class="message-filters">
+                <button class="filter-btn active" onclick="filterMessages('all')">
+                    <i class="fas fa-inbox"></i> All Messages
+                </button>
+                <button class="filter-btn" onclick="filterMessages('unanswered')">
+                    <i class="fas fa-hourglass-half"></i> Unanswered
+                </button>
+                <button class="filter-btn" onclick="filterMessages('answered')">
+                    <i class="fas fa-check-circle"></i> Answered
+                </button>
+            </div>
+            
+            <div class="questions-list" id="messagesList">
+                {% for question in private_questions %}
+                <div class="question-item message-item" data-status="{{ 'answered' if question.is_answered else 'unanswered' }}">
+                    <div class="question-header">
+                        <span class="question-badge private">
+                            <i class="fas fa-user-secret"></i> Anonymous Student
+                        </span>
+                        <span class="question-date">
+                            <i class="fas fa-clock"></i>
+                            {{ question.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                        </span>
+                    </div>
+                    
+                    <div class="private-message-info">
+                        <p class="anonymous-note">
+                            <i class="fas fa-info-circle"></i> 
+                            This is a private question from an anonymous student. Your response will be sent only to them.
+                        </p>
+                        <p><strong><i class="fas fa-question-circle"></i> Question:</strong></p>
+                        <p class="question-content">{{ question.content }}</p>
+                    </div>
+                    
+                    {% if not question.is_answered %}
+                    <!-- Answer Form -->
+                    <div class="answer-form">
+                        <form class="answer-form-inline" onsubmit="submitPrivateAnswer(event, {{ question.id }})">
+                            <label><i class="fas fa-reply"></i> Your Response:</label>
+                            <textarea name="answer_content" placeholder="Type your private response here..." 
+                                      class="form-control answer-textarea" rows="4" required
+                                      oninput="checkAnswerProfanity(this, {{ question.id }})"></textarea>
+                            <div class="profanity-warning" id="profanity-warning-{{ question.id }}" style="display: none;">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Inappropriate language detected. Please remove it before sending.
+                            </div>
+                            <div class="answer-actions">
+                                <button type="submit" class="btn btn-primary btn-sm" id="answer-btn-{{ question.id }}">
+                                    <i class="fas fa-paper-plane"></i> Send Private Answer
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        onclick="blockStudentFromMessage({{ question.student_id }}, {{ question.id }})">
+                                    <i class="fas fa-ban"></i> Block This Student
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    {% else %}
+                    <!-- Show sent answer -->
+                    <div class="message-status">
+                        <span class="status-badge status-answered">
+                            <i class="fas fa-check-circle"></i> You responded to this question
+                        </span>
+                    </div>
+                    
+                    {% if question.answers %}
+                    <div class="answers-section">
+                        <h4><i class="fas fa-reply"></i> Your Response:</h4>
+                        {% for answer in question.answers %}
+                        {% if answer.staff_id == current_user.id %}
+                        <div class="answer-item my-answer">
+                            <div class="answer-header">
+                                <span class="answerer-badge">
+                                    <i class="fas fa-user-tie"></i> Your Response
+                                </span>
+                                <span class="answer-date">
+                                    {{ answer.created_at.strftime('%b %d, %I:%M %p') }}
+                                </span>
+                            </div>
+                            <p>{{ answer.content }}</p>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">
+                <i class="fas fa-inbox"></i><br>
+                No private messages yet.<br>
+                <small>Students can send you private questions anonymously</small>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.private-message-info {
+    background: #f8f9fa;
+    padding: 1.25rem;
+    border-radius: var(--border-radius-sm);
+    margin: 1rem 0;
+}
+
+.message-status {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-answered {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.message-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 0.75rem 1.5rem;
+    border: 2px solid var(--border-color);
+    background: white;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-secondary);
+}
+
+.filter-btn.active {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    border-color: transparent;
+}
+
+.my-answer {
+    background: #e0f2fe;
+    border-left-color: var(--info-color);
+}
+
+.message-item {
+    transition: var(--transition);
+}
+
+.message-item.hidden {
+    display: none;
+}
+</style>
+
+<script>
+let profanityCheckTimeouts = {};
+
+function checkAnswerProfanity(textarea, questionId) {
+    const content = textarea.value.trim();
+    const submitBtn = document.getElementById(`answer-btn-${questionId}`);
+    const warning = document.getElementById(`profanity-warning-${questionId}`);
+    
+    if (content.length === 0) {
+        warning.style.display = 'none';
+        submitBtn.disabled = false;
+        return;
+    }
+    
+    clearTimeout(profanityCheckTimeouts[questionId]);
+    profanityCheckTimeouts[questionId] = setTimeout(() => {
+        fetch('/check-profanity', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: content })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.contains_profanity) {
+                warning.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                warning.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    }, 500);
+}
+
+function submitPrivateAnswer(event, questionId) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData();
+    const content = form.querySelector('textarea[name="answer_content"]').value.trim();
+    
+    if (!content) {
+        alert('Please enter a response');
+        return;
+    }
+    
+    formData.append('question_id', questionId);
+    formData.append('content', content);
+    
+    fetch('/answer-question', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Private answer sent successfully to the student!');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error sending answer');
+        console.error(error);
+    });
+}
+
+function blockStudentFromMessage(studentId, questionId) {
+    if (!confirm('Are you sure you want to block this student? This will prevent them from sending messages to ANY teacher.')) {
+        return;
+    }
+    
+    const reason = prompt('Reason for blocking (optional):') || 'Inappropriate behavior';
+    
+    const formData = new FormData();
+    formData.append('student_id', studentId);
+    formData.append('reason', reason);
+    
+    fetch('/block-student', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Student blocked successfully! They can no longer send messages to any teacher.');
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error blocking student');
+        console.error(error);
+    });
+}
+
+// Filter messages
+function filterMessages(filter) {
+    const messages = document.querySelectorAll('.message-item');
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    
+    // Update active button
+    filterButtons.forEach(btn => btn.classList.remove('active'));
+    event.target.closest('.filter-btn').classList.add('active');
+    
+    // Filter messages
+    messages.forEach(message => {
+        const status = message.getAttribute('data-status');
+        
+        if (filter === 'all') {
+            message.classList.remove('hidden');
+        } else if (filter === status) {
+            message.classList.remove('hidden');
+        } else {
+            message.classList.add('hidden');
+        }
+    });
+}
+</script>
+{% endblock %}
